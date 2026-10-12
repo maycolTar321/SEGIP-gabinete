@@ -234,6 +234,10 @@ function doPost(e) {
       return finalizarTramiteControlado(data.id, data.observaciones, usuarioNombre);
     }
 
+    if (action === 'eliminarTramite') {
+      return eliminarTramiteControlado(data.id, usuarioNombre);
+    }
+
     if (action === 'cambiarDelegado') {
       return cambiarDelegadoTramite(data.id, data.nuevoDelegado, usuarioNombre);
     }
@@ -393,8 +397,17 @@ function guardarOActualizarTramite(tramiteData, usuarioNombre) {
 
   const fechaHoraActual = obtenerFechaHoraActual();
 
-  // ACTUALIZACIÓN
+  // ACTUALIZACIÓN (Solo el Administrador puede editar registros existentes)
   if (filaExistente > 0) {
+    const esAdmin = String(usuarioNombre).toLowerCase().indexOf('maycol') !== -1 ||
+                    String(usuarioNombre).toLowerCase().indexOf('admin') !== -1;
+    if (!esAdmin) {
+      return responderJSON({
+        success: false,
+        message: 'Acceso denegado: Solo el Administrador tiene autorización para editar trámites existentes.'
+      });
+    }
+
     const estadoActual = String(tramiteAnterior[10]);
 
     if (estadoActual === 'FINALIZADO' && tramiteData.estado === 'PENDIENTE') {
@@ -464,6 +477,13 @@ function guardarOActualizarTramite(tramiteData, usuarioNombre) {
 function finalizarTramiteControlado(id, observacionesFinales, usuarioNombre) {
   if (!id) return responderJSON({ success: false, message: 'ID de trámite requerido.' });
 
+  if (String(usuarioNombre).toUpperCase() === 'SAMUEL' || String(usuarioNombre).toUpperCase().indexOf('DESCARTE') !== -1) {
+    return responderJSON({
+      success: false,
+      message: 'Acceso denegado: El personal con rol DESCARTE no está autorizado para finalizar trámites.'
+    });
+  }
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.HOJAS.TRAMITES);
   const rows = sheet.getDataRange().getValues();
@@ -506,6 +526,47 @@ function finalizarTramiteControlado(id, observacionesFinales, usuarioNombre) {
   }
 
   return responderJSON({ success: false, message: 'Trámite no encontrado.' });
+}
+
+function eliminarTramiteControlado(id, usuarioNombre) {
+  if (!id) return responderJSON({ success: false, message: 'ID de trámite requerido.' });
+
+  // Solo el Administrador (Maycol Ávila o cuenta admin) tiene autorización
+  const esAdmin = String(usuarioNombre).toLowerCase().indexOf('maycol') !== -1 ||
+                  String(usuarioNombre).toLowerCase().indexOf('admin') !== -1;
+
+  if (!esAdmin) {
+    return responderJSON({
+      success: false,
+      message: 'Acceso denegado: Solo el Administrador del Gabinete Jurídico tiene permiso para eliminar registros.'
+    });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.HOJAS.TRAMITES);
+  const rows = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(id)) {
+      const correlativo = rows[i][1];
+      const nombreCiudadano = rows[i][3];
+
+      sheet.deleteRow(i + 1);
+
+      registrarEventoHistorial(
+        id, correlativo, 'ELIMINACION', 'Trámite eliminado',
+        'Registro de ' + nombreCiudadano + ' eliminado permanentemente por el Administrador ' + usuarioNombre + '.',
+        usuarioNombre
+      );
+
+      return responderJSON({
+        success: true,
+        message: 'Trámite N.º ' + correlativo + ' eliminado permanentemente.'
+      });
+    }
+  }
+
+  return responderJSON({ success: false, message: 'Trámite no encontrado para eliminar.' });
 }
 
 function cambiarDelegadoTramite(id, nuevoDelegado, usuarioNombre) {
@@ -634,6 +695,24 @@ function obtenerEventosHistorialPorId(tramiteId) {
   return historial;
 }
 
+function formatearFechaEnEspanol(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, CONFIG.ZONA_HORARIA, 'dd/MM/yyyy HH:mm');
+  }
+  var s = String(val).trim();
+  if (!s) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s;
+  try {
+    var clean = s.replace(/\s*\([^)]*\)/g, '').trim();
+    var d = new Date(clean);
+    if (!isNaN(d.getTime())) {
+      return Utilities.formatDate(d, CONFIG.ZONA_HORARIA, 'dd/MM/yyyy HH:mm');
+    }
+  } catch (e) {}
+  return s;
+}
+
 function formatearFilaATramite(r) {
   return {
     id: String(r[0]),
@@ -647,8 +726,8 @@ function formatearFilaATramite(r) {
     detalleCorreccion: String(r[8] || ''),
     delegado: String(r[9]),
     estado: String(r[10]),
-    fechaRecepcion: String(r[11]),
-    fechaFinalizacion: r[12] ? String(r[12]) : '',
+    fechaRecepcion: formatearFechaEnEspanol(r[11]),
+    fechaFinalizacion: r[12] ? formatearFechaEnEspanol(r[12]) : '',
     usuarioRegistro: String(r[13]),
     usuarioFinalizo: r[14] ? String(r[14]) : '',
     observaciones: r[15] ? String(r[15]) : '',

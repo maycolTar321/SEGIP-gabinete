@@ -17,7 +17,7 @@ export const WelcomeSyncBanner: React.FC = () => {
             Panel de seguimiento
           </h2>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Bienvenido, <span className="font-semibold text-slate-700">{usuarioActual.nombre}</span>. Aquí puedes registrar, consultar y hacer seguimiento a los trámites de saneamiento de datos del Gabinete Jurídico.
+            Bienvenido, <span className="font-semibold text-slate-700">{usuarioActual?.nombre || 'Usuario'}</span>. Aquí puedes registrar, consultar y hacer seguimiento a los trámites de saneamiento de datos del Gabinete Jurídico.
           </p>
         </div>
       </div>

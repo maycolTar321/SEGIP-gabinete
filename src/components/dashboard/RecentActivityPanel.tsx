@@ -8,7 +8,7 @@ interface RecentActivityPanelProps {
 }
 
 export const RecentActivityPanel: React.FC<RecentActivityPanelProps> = ({ onVerDetalle }) => {
-  const { tramites } = useTramites();
+  const { tramites, formatearHora } = useTramites();
 
   // Tomar los 5 más recientes
   const recientes = tramites.slice(0, 5);
@@ -64,7 +64,7 @@ export const RecentActivityPanel: React.FC<RecentActivityPanelProps> = ({ onVerD
                   {tra.estado}
                 </span>
                 <p className="text-[10px] text-slate-400 mt-0.5 font-mono">
-                  {tra.fechaRecepcion.split(' ')[1] || tra.fechaRecepcion}
+                  {formatearHora(tra.fechaRecepcion)}
                 </p>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Clock, CheckCircle2, Check, Eye, MoreVertical, ChevronLeft, ChevronRight, EyeOff } from 'lucide-react';
+import { Clock, CheckCircle2, Check, Eye, MoreVertical, ChevronLeft, ChevronRight, EyeOff, Lock } from 'lucide-react';
 import { Tramite } from '../../types';
+import { useTramites } from '../../context/TramitesContext';
 
 interface TramitesTableProps {
   tramites: Tramite[];
@@ -13,6 +14,7 @@ export const TramitesTable: React.FC<TramitesTableProps> = ({
   onVerDetalle,
   onFinalizar,
 }) => {
+  const { puedeFinalizar, esDescarte, enmascararCI: contextEnmascarar } = useTramites();
   const [paginaActual, setPaginaActual] = useState(1);
   const [tamanoPagina, setTamanoPagina] = useState(10);
   const [enmascararCI, setEnmascararCI] = useState(true);
@@ -32,9 +34,11 @@ export const TramitesTable: React.FC<TramitesTableProps> = ({
   };
 
   const formatearCI = (ci: string) => {
+    if (esDescarte) {
+      return contextEnmascarar(ci, true);
+    }
     if (!enmascararCI) return ci;
-    if (ci.length <= 2) return ci;
-    return `*******${ci.slice(-1)}`;
+    return contextEnmascarar(ci, true);
   };
 
   return (
@@ -47,24 +51,30 @@ export const TramitesTable: React.FC<TramitesTableProps> = ({
           <span>{totalRegistros} trámites encontrados</span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setEnmascararCI(!enmascararCI)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors font-medium text-[11px]"
-          title="Alternar privacidad de cédulas de identidad"
-        >
-          {enmascararCI ? (
-            <>
-              <Eye className="w-3.5 h-3.5 text-slate-500" />
-              <span>Mostrar C.I. completa</span>
-            </>
-          ) : (
-            <>
-              <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-              <span>Enmascarar C.I.</span>
-            </>
-          )}
-        </button>
+        {!esDescarte ? (
+          <button
+            type="button"
+            onClick={() => setEnmascararCI(!enmascararCI)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors font-medium text-[11px] cursor-pointer"
+            title="Alternar privacidad de cédulas de identidad"
+          >
+            {enmascararCI ? (
+              <>
+                <Eye className="w-3.5 h-3.5 text-slate-500" />
+                <span>Mostrar C.I. completa</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                <span>Enmascarar C.I.</span>
+              </>
+            )}
+          </button>
+        ) : (
+          <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 font-semibold">
+            Cédulas protegidas (Rol DESCARTE)
+          </span>
+        )}
       </div>
 
       {/* Tabla con scroll horizontal contenido */}
@@ -162,15 +172,27 @@ export const TramitesTable: React.FC<TramitesTableProps> = ({
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         {esPendiente ? (
-                          <button
-                            type="button"
-                            onClick={() => onFinalizar(item)}
-                            className="px-3 py-1.5 bg-segip-700 hover:bg-segip-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1 active:scale-95"
-                            title="Finalizar trámite"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            <span>Finalizar</span>
-                          </button>
+                          puedeFinalizar ? (
+                            <button
+                              type="button"
+                              onClick={() => onFinalizar(item)}
+                              className="px-3 py-1.5 bg-segip-700 hover:bg-segip-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1 active:scale-95 cursor-pointer"
+                              title="Finalizar trámite"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Finalizar</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-2.5 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-not-allowed"
+                              title="El rol DESCARTE no tiene autorización para finalizar trámites"
+                            >
+                              <Lock className="w-3 h-3" />
+                              <span>Restringido</span>
+                            </button>
+                          )
                         ) : (
                           <button
                             type="button"

@@ -26,7 +26,7 @@ export const UsersView: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {USUARIOS_AUTORIZADOS.map((usr) => {
-          const esActivo = usr.id === usuarioActual.id;
+          const esActivo = usr.id === usuarioActual?.id;
           const stats = estadisticas.porDelegado[usr.nombre] || { total: 0, pendientes: 0, finalizados: 0 };
 
           return (

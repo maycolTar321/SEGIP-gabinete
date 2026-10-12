@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Home, FilePlus, ListFilter, BarChart3, Users, Settings } from 'lucide-react';
+import { X, Home, FilePlus, ListFilter, BarChart3, Users, Settings, LogOut, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { BoliviaMap } from '../../assets/BoliviaMap';
 import type { TabId } from '../layout/Sidebar';
+import { useTramites } from '../../context/TramitesContext';
 
 interface MobileMenuDrawerProps {
   isOpen: boolean;
@@ -16,19 +17,23 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
   tabActiva,
   onSeleccionarTab,
 }) => {
+  const { usuarioActual, logout, esDescarte } = useTramites();
+
   if (!isOpen) return null;
 
-  const menuItems = [
-    { id: 'dashboard' as TabId, label: 'Panel principal', icon: Home },
-    { id: 'registro' as TabId, label: 'Registrar trámite', icon: FilePlus },
-    { id: 'tramites' as TabId, label: 'Listado de trámites', icon: ListFilter },
-    { id: 'reportes' as TabId, label: 'Reportes y Estadísticas', icon: BarChart3 },
-    { id: 'usuarios' as TabId, label: 'Usuarios y Accesos', icon: Users },
-    { id: 'configuracion' as TabId, label: 'Configuración / Sheets', icon: Settings },
+  const todosMenuItems = [
+    { id: 'dashboard' as TabId, label: 'Panel principal', icon: Home, visible: true },
+    { id: 'registro' as TabId, label: 'Registrar trámite', icon: FilePlus, visible: true },
+    { id: 'tramites' as TabId, label: 'Listado de trámites', icon: ListFilter, visible: true },
+    { id: 'reportes' as TabId, label: 'Reportes y Estadísticas', icon: BarChart3, visible: !esDescarte },
+    { id: 'usuarios' as TabId, label: 'Usuarios y Accesos', icon: Users, visible: usuarioActual?.rol === 'ADMINISTRADOR' },
+    { id: 'configuracion' as TabId, label: 'Configuración / Sheets', icon: Settings, visible: usuarioActual?.rol === 'ADMINISTRADOR' },
   ];
 
+  const menuItems = todosMenuItems.filter((item) => item.visible);
+
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-50 flex select-none animate-in fade-in duration-150">
       {/* Fondo oscuro backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
@@ -36,7 +41,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
       />
 
       {/* Menú deslizable lateral */}
-      <div className="relative w-4/5 max-w-xs bg-[#0A3871] text-white flex flex-col justify-between p-5 z-10 shadow-2xl animate-in slide-in-from-left duration-200">
+      <div className="relative w-4/5 max-w-xs bg-gradient-to-b from-[#0A3871] via-[#072B56] to-[#041D3C] text-white flex flex-col justify-between p-5 z-10 shadow-2xl animate-in slide-in-from-left duration-200">
         <div>
           {/* Cabecera del drawer con logos */}
           <div className="flex items-center justify-between pb-4 border-b border-blue-900/60">
@@ -49,10 +54,39 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-blue-200 hover:text-white rounded-xl"
+              className="p-1.5 text-blue-200 hover:text-white rounded-xl active:scale-95"
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+
+          {/* Información del usuario autenticado */}
+          <div className="mt-4 p-3 rounded-2xl bg-white/10 border border-white/10">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-white text-[#0A3871] flex items-center justify-center font-black text-xs shadow-xs">
+                {usuarioActual?.nombre.charAt(0) || 'U'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-white truncate">
+                  {usuarioActual?.nombre || 'Usuario'}
+                </p>
+                <div className="mt-0.5">
+                  {esDescarte ? (
+                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400/30">
+                      DESCARTE
+                    </span>
+                  ) : usuarioActual?.rol === 'ADMINISTRADOR' ? (
+                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30">
+                      ADMINISTRADOR
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
+                      OPERADOR
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Menú de navegación */}
@@ -68,9 +102,9 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
                     onSeleccionarTab(item.id);
                     onClose();
                   }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-xs text-left transition-colors ${
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-semibold text-xs text-left transition-all active:scale-98 ${
                     esActivo
-                      ? 'bg-blue-600/90 text-white font-bold shadow-md'
+                      ? 'bg-blue-600/90 text-white font-bold shadow-md shadow-blue-950/30'
                       : 'text-blue-100/90 hover:bg-white/10'
                   }`}
                 >
@@ -82,12 +116,26 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
           </nav>
         </div>
 
-        {/* Identidad institucional inferior */}
-        <div className="pt-4 border-t border-blue-900/60 flex items-center gap-3">
-          <BoliviaMap className="w-12 h-12 text-blue-200/40" />
-          <div>
-            <p className="text-xs font-bold text-white">SEGIP Gabinete Jurídico</p>
-            <p className="text-[10px] text-blue-200/80">Identidad que nos une</p>
+        {/* Sección inferior con botón de cerrar sesión e identidad SEGIP */}
+        <div className="pt-4 border-t border-blue-900/60 space-y-3">
+          <button
+            type="button"
+            onClick={async () => {
+              onClose();
+              await logout();
+            }}
+            className="w-full py-2.5 px-3 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-200 border border-rose-500/30 text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Cerrar sesión</span>
+          </button>
+
+          <div className="flex items-center gap-2.5 pt-1 text-blue-200/50">
+            <BoliviaMap className="w-8 h-8 opacity-40 shrink-0" />
+            <div className="text-[10px] leading-tight">
+              <p className="font-bold text-white/80">SEGIP Gabinete Jurídico</p>
+              <p>Identidad que nos une</p>
+            </div>
           </div>
         </div>
       </div>

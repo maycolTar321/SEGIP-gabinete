@@ -16,6 +16,7 @@ import { ModalDetalleTramite } from './components/tramites/ModalDetalleTramite';
 import { ReportsView } from './components/reports/ReportsView';
 import { UsersView } from './components/users/UsersView';
 import { ConfigView } from './components/config/ConfigView';
+import { LoginView } from './components/auth/LoginView';
 
 // Componentes dedicados para experiencia Mobile-First
 import { MobileHeader } from './components/mobile/MobileHeader';
@@ -27,24 +28,55 @@ import { MobileDetailView } from './components/mobile/MobileDetailView';
 import { MobileMenuDrawer } from './components/mobile/MobileMenuDrawer';
 
 import type { Tramite } from './types';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X, ShieldAlert } from 'lucide-react';
+
+const AccesoRestringido: React.FC = () => (
+  <div className="bg-white rounded-3xl p-8 max-w-md mx-auto text-center border border-slate-200/90 shadow-xs space-y-3 my-8">
+    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center border border-amber-200">
+      <ShieldAlert className="w-6 h-6 stroke-[2.2]" />
+    </div>
+    <h3 className="text-base font-black text-slate-800">
+      Acceso Restringido
+    </h3>
+    <p className="text-xs text-slate-500 leading-relaxed">
+      Esta sección requiere credenciales con rol de <strong>ADMINISTRADOR</strong>. El rol actual no tiene autorización para acceder a estos reportes o configuraciones.
+    </p>
+  </div>
+);
 
 const DashboardContent: React.FC = () => {
-  const { tramitesFiltrados, finalizarTramite, mensajeError, limpiarError } = useTramites();
+  const {
+    tramites,
+    usuarioActual,
+    estaAutenticado,
+    tramitesFiltrados,
+    finalizarTramite,
+    mensajeError,
+    limpiarError,
+    esDescarte,
+  } = useTramites();
 
   const [tabActiva, setTabActiva] = useState<TabId>('dashboard');
   const [modalRegistroAbierto, setModalRegistroAbierto] = useState(false);
   const [tramiteAFinalizar, setTramiteAFinalizar] = useState<Tramite | null>(null);
-  const [tramiteDetalle, setTramiteDetalle] = useState<Tramite | null>(null);
+  const [tramiteDetalleId, setTramiteDetalleId] = useState<string | null>(null);
 
   // Estados específicos de móvil
   const [drawerMenuAbierto, setDrawerMenuAbierto] = useState(false);
   const [mobileWizardAbierto, setMobileWizardAbierto] = useState(false);
-  const [mobileDetalleTramite, setMobileDetalleTramite] = useState<Tramite | null>(null);
+  const [mobileDetalleTramiteId, setMobileDetalleTramiteId] = useState<string | null>(null);
+
+  // Trámites de detalle reactivos (se actualizan instantáneamente al editar o eliminar)
+  const tramiteDetalle = tramiteDetalleId ? tramites.find((t) => t.id === tramiteDetalleId) || null : null;
+  const mobileDetalleTramite = mobileDetalleTramiteId ? tramites.find((t) => t.id === mobileDetalleTramiteId) || null : null;
+
+  // Puerta de autenticación obligatoria
+  if (!estaAutenticado || !usuarioActual) {
+    return <LoginView />;
+  }
 
   const handleCambiarTab = (tab: TabId) => {
     if (tab === 'registro') {
-      // En desktop abre modal, en móvil abre wizard paso a paso
       if (window.innerWidth < 1024) {
         setMobileWizardAbierto(true);
       } else {
@@ -61,17 +93,20 @@ const DashboardContent: React.FC = () => {
 
   const handleVerDetalle = (tramite: Tramite) => {
     if (window.innerWidth < 1024) {
-      setMobileDetalleTramite(tramite);
+      setMobileDetalleTramiteId(tramite.id);
     } else {
-      setTramiteDetalle(tramite);
+      setTramiteDetalleId(tramite.id);
     }
   };
 
   const handleConfirmarFinalizacion = async (id: string, observaciones?: string) => {
     await finalizarTramite(id, observaciones);
     setTramiteAFinalizar(null);
-    if (mobileDetalleTramite && mobileDetalleTramite.id === id) {
-      setMobileDetalleTramite(null);
+    if (mobileDetalleTramiteId === id) {
+      setMobileDetalleTramiteId(null);
+    }
+    if (tramiteDetalleId === id) {
+      setTramiteDetalleId(null);
     }
   };
 
@@ -97,7 +132,7 @@ const DashboardContent: React.FC = () => {
               <button
                 type="button"
                 onClick={limpiarError}
-                className="p-1 hover:bg-amber-100 rounded-lg text-amber-700"
+                className="p-1 hover:bg-amber-100 rounded-lg text-amber-700 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -140,9 +175,17 @@ const DashboardContent: React.FC = () => {
               </>
             )}
 
-            {tabActiva === 'reportes' && <ReportsView />}
-            {tabActiva === 'usuarios' && <UsersView />}
-            {tabActiva === 'configuracion' && <ConfigView />}
+            {tabActiva === 'reportes' && (
+              esDescarte ? <AccesoRestringido /> : <ReportsView />
+            )}
+
+            {tabActiva === 'usuarios' && (
+              usuarioActual.rol === 'ADMINISTRADOR' ? <UsersView /> : <AccesoRestringido />
+            )}
+
+            {tabActiva === 'configuracion' && (
+              usuarioActual.rol === 'ADMINISTRADOR' ? <ConfigView /> : <AccesoRestringido />
+            )}
           </main>
         </div>
       </div>
@@ -155,9 +198,9 @@ const DashboardContent: React.FC = () => {
         <MobileHeader onAbrirMenu={() => setDrawerMenuAbierto(true)} />
 
         {mensajeError && (
-          <div className="mx-3 mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-[11px] text-amber-800 font-semibold">
+          <div className="mx-3 mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-[11px] text-amber-800 font-semibold shrink-0">
             <span>{mensajeError}</span>
-            <button type="button" onClick={limpiarError} className="p-1">
+            <button type="button" onClick={limpiarError} className="p-1 cursor-pointer">
               <X className="w-3 h-3" />
             </button>
           </div>
@@ -169,31 +212,31 @@ const DashboardContent: React.FC = () => {
             <MobileHomeView
               onAbrirRegistro={() => setMobileWizardAbierto(true)}
               onVerTodos={() => setTabActiva('tramites')}
-              onVerDetalle={(t) => setMobileDetalleTramite(t)}
+              onVerDetalle={(t) => setMobileDetalleTramiteId(t.id)}
             />
           )}
 
           {tabActiva === 'tramites' && (
             <MobileTramitesListView
-              onVerDetalle={(t) => setMobileDetalleTramite(t)}
+              onVerDetalle={(t) => setMobileDetalleTramiteId(t.id)}
             />
           )}
 
           {tabActiva === 'reportes' && (
             <div className="p-4 pb-24">
-              <ReportsView />
+              {esDescarte ? <AccesoRestringido /> : <ReportsView />}
             </div>
           )}
 
           {tabActiva === 'usuarios' && (
             <div className="p-4 pb-24">
-              <UsersView />
+              {usuarioActual.rol === 'ADMINISTRADOR' ? <UsersView /> : <AccesoRestringido />}
             </div>
           )}
 
           {tabActiva === 'configuracion' && (
             <div className="p-4 pb-24">
-              <ConfigView />
+              {usuarioActual.rol === 'ADMINISTRADOR' ? <ConfigView /> : <AccesoRestringido />}
             </div>
           )}
         </div>
@@ -225,7 +268,7 @@ const DashboardContent: React.FC = () => {
       {mobileDetalleTramite && (
         <MobileDetailView
           tramite={mobileDetalleTramite}
-          onVolver={() => setMobileDetalleTramite(null)}
+          onVolver={() => setMobileDetalleTramiteId(null)}
           onFinalizar={(t) => setTramiteAFinalizar(t)}
         />
       )}
@@ -247,7 +290,7 @@ const DashboardContent: React.FC = () => {
       <ModalDetalleTramite
         tramite={tramiteDetalle}
         isOpen={!!tramiteDetalle}
-        onClose={() => setTramiteDetalle(null)}
+        onClose={() => setTramiteDetalleId(null)}
         onAbrirFinalizar={handleAbrirFinalizar}
       />
 

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Bell, Menu, ChevronDown } from 'lucide-react';
+import { Bell, Menu, LogOut, ShieldCheck, UserCheck, AlertTriangle } from 'lucide-react';
 import { useTramites } from '../../context/TramitesContext';
-import { USUARIOS_AUTORIZADOS } from '../../services/storage';
 
 interface MobileHeaderProps {
   onAbrirMenu: () => void;
@@ -9,48 +8,80 @@ interface MobileHeaderProps {
   tituloPersonalizado?: string;
 }
 
-export const MobileHeader: React.FC<MobileHeaderProps> = ({ onAbrirMenu, onVolver, tituloPersonalizado }) => {
-  const { usuarioActual, cambiarUsuario, estadisticas } = useTramites();
-  const [modalUsuarioAbierto, setModalUsuarioAbierto] = useState(false);
+export const MobileHeader: React.FC<MobileHeaderProps> = ({
+  onAbrirMenu,
+  onVolver,
+  tituloPersonalizado,
+}) => {
+  const { usuarioActual, logout, estadisticas, esDescarte } = useTramites();
+  const [confirmarSalida, setConfirmarSalida] = useState(false);
+
+  const getRolBadge = () => {
+    if (!usuarioActual) return null;
+    if (esDescarte) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+          <AlertTriangle className="w-2.5 h-2.5 text-amber-300" />
+          DESCARTE
+        </span>
+      );
+    }
+    if (usuarioActual.rol === 'ADMINISTRADOR') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/30">
+          <ShieldCheck className="w-2.5 h-2.5 text-blue-300" />
+          ADMINISTRADOR
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+        <UserCheck className="w-2.5 h-2.5 text-emerald-300" />
+        OPERADOR
+      </span>
+    );
+  };
 
   return (
     <>
-      <header className="bg-gradient-to-r from-[#0A3871] to-[#042450] text-white px-3 py-2.5 sticky top-0 z-40 shadow-md">
+      <header className="bg-gradient-to-r from-[#0A3871] via-[#082E60] to-[#042450] text-white px-3.5 pt-3 pb-2.5 sticky top-0 z-40 shadow-md select-none">
+        {/* Fila superior: Menú / Logos / Campana */}
         <div className="flex items-center justify-between gap-2">
-          {/* Lado izquierdo: Botón menú o botón volver */}
+          {/* Lado izquierdo: Botón menú lateral */}
           <button
             type="button"
             onClick={onVolver || onAbrirMenu}
-            className="p-2 -ml-1 rounded-xl text-white hover:bg-white/10 active:bg-white/20 transition-colors"
-            aria-label="Menú principal"
+            className="p-2 -ml-1.5 rounded-2xl text-white hover:bg-white/10 active:bg-white/20 transition-all active:scale-95"
+            aria-label="Abrir menú de opciones"
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-5 h-5 stroke-[2.2]" />
           </button>
 
-          {/* Centro: Logotipos oficiales en pastilla blanca de alta resolución */}
-          <div className="bg-white/95 px-2.5 py-1 rounded-full shadow-xs flex items-center gap-2 max-w-[210px] sm:max-w-none">
+          {/* Centro: Pastilla blanca de logotipos oficiales (Presidencia + SEGIP) */}
+          <div className="bg-white/95 px-3 py-1 rounded-full shadow-md flex items-center justify-center gap-2.5 border border-white/50 max-w-[210px] shrink-0">
             <img
               src="/logo-presidencia.png"
               alt="Presidencia"
-              className="h-7 w-auto object-contain shrink-0"
+              className="h-6 w-auto object-contain shrink-0"
             />
-            <div className="h-4 w-[1px] bg-slate-300" />
+            <div className="h-3.5 w-[1px] bg-slate-300 shrink-0" />
             <img
               src="/logo-segip.png"
               alt="SEGIP"
-              className="h-6 w-auto object-contain shrink-0"
+              className="h-5 w-auto object-contain shrink-0"
             />
           </div>
 
-          {/* Lado derecho: Notificaciones */}
+          {/* Lado derecho: Notificaciones con contador */}
           <div className="relative">
             <button
               type="button"
-              className="p-2 -mr-1 rounded-xl text-white hover:bg-white/10 active:bg-white/20 transition-colors relative"
+              className="p-2 -mr-1.5 rounded-2xl text-white hover:bg-white/10 active:bg-white/20 transition-all relative active:scale-95"
+              aria-label="Notificaciones"
             >
-              <Bell className="w-5 h-5" />
+              <Bell className="w-5 h-5 stroke-[2.2]" />
               {estadisticas.pendientes > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-xs animate-pulse">
                   {estadisticas.pendientes}
                 </span>
               )}
@@ -58,88 +89,78 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ onAbrirMenu, onVolve
           </div>
         </div>
 
-        {/* Barra de usuario activo en móvil */}
+        {/* Fila inferior: Tarjeta / Pastilla de usuario activo */}
         {!tituloPersonalizado ? (
-          <div className="mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between">
+          <div className="mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* Avatar circular con inicial */}
+              <div className="w-7 h-7 rounded-full bg-white text-[#0A3871] flex items-center justify-center font-black text-xs shadow-xs shrink-0">
+                {usuarioActual?.nombre.charAt(0) || 'U'}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold leading-tight text-white truncate">
+                  {usuarioActual?.nombre || 'Usuario'}
+                </div>
+                <div className="mt-0.5">
+                  {getRolBadge()}
+                </div>
+              </div>
+            </div>
+
+            {/* Botón de cierre de sesión */}
             <button
               type="button"
-              onClick={() => setModalUsuarioAbierto(true)}
-              className="flex items-center gap-2 py-1 px-2 -ml-1 rounded-lg hover:bg-white/10 text-left active:scale-98 transition-all"
+              onClick={() => setConfirmarSalida(true)}
+              className="p-1.5 px-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-blue-100 flex items-center gap-1 text-[11px] font-semibold shrink-0"
+              title="Cerrar sesión"
             >
-              <div className="w-7 h-7 rounded-full bg-white text-segip-800 flex items-center justify-center font-bold text-xs shadow-xs">
-                {usuarioActual.nombre.charAt(0)}
-              </div>
-              <div>
-                <span className="text-xs font-bold leading-tight flex items-center gap-1 text-white">
-                  {usuarioActual.nombre}
-                  <ChevronDown className="w-3.5 h-3.5 text-blue-200" />
-                </span>
-                <span className="text-[10px] text-blue-200/90 font-medium block">
-                  {usuarioActual.rol === 'ADMINISTRADOR' ? 'Administrador' : 'Operador'}
-                </span>
-              </div>
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Salir</span>
             </button>
-
-            <div className="text-right">
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15 text-blue-100 font-semibold">
-                Saneamiento
-              </span>
-            </div>
           </div>
         ) : (
-          <div className="mt-2 pt-1 border-t border-white/15 text-center">
-            <h2 className="text-xs font-bold text-white uppercase tracking-wider truncate">
+          <div className="mt-2 pt-1.5 border-t border-white/15 text-center">
+            <h2 className="text-xs font-black text-white uppercase tracking-wider truncate">
               {tituloPersonalizado}
             </h2>
           </div>
         )}
       </header>
 
-      {/* Modal móvil para cambiar usuario */}
-      {modalUsuarioAbierto && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm overflow-hidden p-5 shadow-2xl animate-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-800">Cambiar de operador</h3>
-              <button
-                type="button"
-                onClick={() => setModalUsuarioAbierto(false)}
-                className="text-xs font-semibold text-slate-500 hover:text-slate-800"
-              >
-                Cerrar
-              </button>
+      {/* Modal de confirmación de cierre de sesión */}
+      {confirmarSalida && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-xs w-full p-5 text-slate-800 shadow-2xl space-y-4 animate-in zoom-in-95">
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center mb-2">
+                <LogOut className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <h3 className="text-base font-black text-slate-800">
+                ¿Cerrar sesión?
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Deberá ingresar nuevamente sus credenciales para acceder al sistema.
+              </p>
             </div>
 
-            <div className="py-3 space-y-2">
-              {USUARIOS_AUTORIZADOS.map((usr) => {
-                const esActivo = usr.id === usuarioActual.id;
-                return (
-                  <button
-                    key={usr.id}
-                    type="button"
-                    onClick={() => {
-                      cambiarUsuario(usr);
-                      setModalUsuarioAbierto(false);
-                    }}
-                    className={`w-full p-3 rounded-2xl flex items-center gap-3 text-left transition-all ${
-                      esActivo ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50 border border-slate-100'
-                    }`}
-                  >
-                    <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs ${
-                        esActivo ? 'bg-segip-700 text-white' : 'bg-slate-300 text-slate-700'
-                      }`}
-                    >
-                      {usr.nombre.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate">{usr.nombre}</p>
-                      <p className="text-[11px] text-slate-500 truncate">{usr.cargo}</p>
-                    </div>
-                    {esActivo && <div className="w-2.5 h-2.5 rounded-full bg-segip-600" />}
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmarSalida(false)}
+                className="py-2.5 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 active:scale-95"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setConfirmarSalida(false);
+                  await logout();
+                }}
+                className="py-2.5 px-3 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 active:scale-95 shadow-md shadow-rose-600/20"
+              >
+                Cerrar sesión
+              </button>
             </div>
           </div>
         </div>

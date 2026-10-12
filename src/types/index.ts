@@ -33,12 +33,16 @@ export interface Tramite {
   historial: HistorialEvento[];
 }
 
+export type RolUsuario = 'ADMINISTRADOR' | 'OPERADOR' | 'DESCARTE' | 'PORTERO';
+
 export interface UsuarioActivo {
   id: string;
   nombre: string;
   cargo: string;
-  rol: 'OPERADOR' | 'ADMINISTRADOR';
+  rol: RolUsuario;
   avatar?: string;
+  token?: string;
+  expiraMs?: number;
 }
 
 export interface FiltrosTramite {

@@ -2,11 +2,18 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import type { Tramite, UsuarioActivo, FiltrosTramite, Estadisticas, DelegadoTramite, ModalidadTramite } from '../types';
 import { storageService } from '../services/storage';
 import { gasApiService } from '../services/gasApi';
+import { formatearFechaEspanol, formatearHoraEspanol } from '../utils/dateUtils';
 
 interface TramitesContextType {
   tramites: Tramite[];
   tramitesFiltrados: Tramite[];
-  usuarioActual: UsuarioActivo;
+  usuarioActual: UsuarioActivo | null;
+  estaAutenticado: boolean;
+  puedeFinalizar: boolean;
+  esDescarte: boolean;
+  esAdmin: boolean;
+  login: (identificador: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  logout: () => Promise<void>;
   cambiarUsuario: (usuario: UsuarioActivo) => void;
   filtros: FiltrosTramite;
   setFiltros: React.Dispatch<React.SetStateAction<FiltrosTramite>>;
@@ -18,6 +25,9 @@ interface TramitesContextType {
   cambiarIntervaloSegundos: (seg: number) => void;
   mensajeError: string | null;
   limpiarError: () => void;
+  enmascararCI: (ci: string, forzarMascara?: boolean) => string;
+  formatearFecha: (fecha: string | undefined | null) => string;
+  formatearHora: (fecha: string | undefined | null) => string;
   registrarTramite: (nuevo: {
     nombreCompleto: string;
     cedulaIdentidad: string;
@@ -29,6 +39,7 @@ interface TramitesContextType {
   }) => Promise<{ success: boolean; tramite?: Tramite; message?: string }>;
   finalizarTramite: (id: string, observaciones?: string) => Promise<{ success: boolean; message?: string }>;
   actualizarTramite: (tramiteActualizado: Tramite) => Promise<{ success: boolean; message?: string }>;
+  eliminarTramite: (id: string) => Promise<{ success: boolean; message?: string }>;
   forzarSincronizacion: () => Promise<void>;
 }
 
@@ -36,7 +47,7 @@ const TramitesContext = createContext<TramitesContextType | undefined>(undefined
 
 export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tramites, setTramites] = useState<Tramite[]>([]);
-  const [usuarioActual, setUsuarioActual] = useState<UsuarioActivo>(() => storageService.getCurrentUser());
+  const [usuarioActual, setUsuarioActual] = useState<UsuarioActivo | null>(() => storageService.getCurrentUser());
   const [sincronizando, setSincronizando] = useState(false);
   const [conexionActiva, setConexionActiva] = useState(true);
   const [ultimaSincronizacion, setUltimaSincronizacion] = useState<string>('Conectando...');
@@ -53,9 +64,42 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     estado: 'TODOS',
   });
 
+  const estaAutenticado = !!usuarioActual;
+  const esDescarte = usuarioActual?.rol === 'DESCARTE' || usuarioActual?.rol === 'PORTERO';
+  const esAdmin = usuarioActual?.rol === 'ADMINISTRADOR';
+  const puedeFinalizar = !!usuarioActual && (usuarioActual.rol === 'ADMINISTRADOR' || usuarioActual.rol === 'OPERADOR');
+
+  const login = async (identificador: string, password: string) => {
+    setMensajeError(null);
+    const res = await gasApiService.login(identificador, password);
+    if (res.success && res.usuario) {
+      setUsuarioActual(res.usuario);
+      return { success: true };
+    }
+    const errMsg = res.message || 'Error al iniciar sesión.';
+    setMensajeError(errMsg);
+    return { success: false, message: errMsg };
+  };
+
+  const logout = async () => {
+    await gasApiService.logout();
+    setUsuarioActual(null);
+  };
+
   const cambiarUsuario = (usuario: UsuarioActivo) => {
     setUsuarioActual(usuario);
-    storageService.setCurrentUser(usuario);
+    const expiraMs = Date.now() + 8 * 3600 * 1000;
+    storageService.setSession(usuario.token || `tok-${Date.now()}`, usuario, expiraMs);
+  };
+
+  const enmascararCI = (ci: string, forzarMascara = false): string => {
+    const limpia = (ci || '').trim();
+    if (!limpia) return 'C.I. *******';
+    if (esDescarte || forzarMascara) {
+      const ultimo = limpia.slice(-1);
+      return `C.I. *******${ultimo}`;
+    }
+    return `C.I. ${limpia}`;
   };
 
   const cambiarIntervaloSegundos = (seg: number) => {
@@ -227,7 +271,7 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       delegado: nuevo.delegado,
       estado: 'PENDIENTE',
       fechaRecepcion: fechaHoraStr,
-      usuarioRegistro: usuarioActual.nombre,
+      usuarioRegistro: usuarioActual?.nombre || 'Operador',
       observaciones: nuevo.observaciones?.trim() || '',
       historial: [],
     };
@@ -236,7 +280,7 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setTramites((prev) => [tramiteNuevo, ...prev]);
 
     // Envío y confirmación con Google Apps Script
-    const res = await gasApiService.guardarTramite(tramiteNuevo, usuarioActual.nombre);
+    const res = await gasApiService.guardarTramite(tramiteNuevo, usuarioActual?.nombre || 'Operador');
     if (res.success && res.tramite) {
       setTramites((prev) =>
         prev.map((t) => (t.id === tramiteNuevo.id ? (res.tramite as Tramite) : t))
@@ -248,8 +292,14 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  // Finalización controlada
+  // Finalización controlada con verificación de permisos de servidor y cliente
   const finalizarTramite = async (id: string, observaciones?: string) => {
+    if (esDescarte) {
+      const msg = 'Acceso denegado: El personal con rol DESCARTE no está autorizado para finalizar trámites.';
+      setMensajeError(msg);
+      return { success: false, message: msg };
+    }
+
     const tramiteTarget = tramites.find((t) => t.id === id);
     if (!tramiteTarget) {
       return { success: false, message: 'Trámite no encontrado.' };
@@ -259,7 +309,7 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return { success: false, message: 'El trámite ya fue finalizado previamente.' };
     }
 
-    const res = await gasApiService.finalizarTramite(id, observaciones, usuarioActual.nombre);
+    const res = await gasApiService.finalizarTramite(id, observaciones, usuarioActual?.nombre || 'Operador');
     if (res.success) {
       // Forzar lectura inmediata para tener fecha de servidor y datos sincronizados
       await sincronizar(true);
@@ -271,13 +321,42 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const actualizarTramite = async (tramiteActualizado: Tramite) => {
-    const res = await gasApiService.guardarTramite(tramiteActualizado, usuarioActual.nombre);
+    if (!esAdmin) {
+      const msg = 'Acceso denegado: Solo el Administrador tiene autorización para editar trámites existentes.';
+      setMensajeError(msg);
+      return { success: false, message: msg };
+    }
+
+    // Actualización inmediata optimista en la interfaz
+    setTramites((prev) =>
+      prev.map((t) => (t.id === tramiteActualizado.id ? tramiteActualizado : t))
+    );
+
+    const res = await gasApiService.guardarTramite(tramiteActualizado, usuarioActual?.nombre || 'Maycol Ávila');
     if (res.success) {
-      await sincronizar(true);
+      if (res.tramite) {
+        setTramites((prev) =>
+          prev.map((t) => (t.id === tramiteActualizado.id ? (res.tramite as Tramite) : t))
+        );
+      }
       return { success: true };
     }
     setMensajeError(res.message || 'Error actualizando trámite');
     return { success: false, message: res.message };
+  };
+
+  const eliminarTramite = async (id: string): Promise<{ success: boolean; message?: string }> => {
+    if (!esAdmin) {
+      const msg = 'Acceso denegado: Solo el Administrador del Gabinete Jurídico tiene permiso para eliminar registros.';
+      setMensajeError(msg);
+      return { success: false, message: msg };
+    }
+
+    // Eliminación inmediata optimista en la interfaz
+    setTramites((prev) => prev.filter((t) => t.id !== id));
+
+    const res = await gasApiService.eliminarTramite(id, usuarioActual?.nombre || 'Maycol Ávila');
+    return { success: true, message: res.message };
   };
 
   return (
@@ -286,6 +365,12 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         tramites,
         tramitesFiltrados,
         usuarioActual,
+        estaAutenticado,
+        puedeFinalizar,
+        esDescarte,
+        esAdmin,
+        login,
+        logout,
         cambiarUsuario,
         filtros,
         setFiltros,
@@ -297,9 +382,13 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         cambiarIntervaloSegundos,
         mensajeError,
         limpiarError,
+        enmascararCI,
+        formatearFecha: formatearFechaEspanol,
+        formatearHora: formatearHoraEspanol,
         registrarTramite,
         finalizarTramite,
         actualizarTramite,
+        eliminarTramite,
         forzarSincronizacion: () => sincronizar(true),
       }}
     >

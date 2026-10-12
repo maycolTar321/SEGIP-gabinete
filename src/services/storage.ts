@@ -17,32 +17,76 @@ export const USUARIOS_AUTORIZADOS: UsuarioActivo[] = [
     id: 'usr-maycol',
     nombre: 'SAMUEL',
     cargo: 'DESCARTE',
-    rol: 'OPERADOR',
+    rol: 'DESCARTE',
   },
 ];
 
 // URL Oficial de la Web App en Google Apps Script
-export const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwTl7eqlnCYKnNiTrwi6SMHYVPV4hcFHNB1ImfinMzNm9L88qbDDRRW9OoGNkmCsuEUmg/exec';
+export const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyQkzv1pQj_iQrdSJZMUhVdC5YpepNI-VcLqW3Zuqm-J17do6BkxGPFN0rO7OSipO2sgw/exec';
 
-const STORAGE_KEY_USER = 'segip_gabinete_current_user_v3';
-const STORAGE_KEY_API_URL = 'segip_gabinete_gas_api_url_v3';
-const STORAGE_KEY_SYNC_INTERVAL = 'segip_gabinete_sync_interval_v3';
+const STORAGE_KEY_SESSION = 'segip_gabinete_session_v5';
+const STORAGE_KEY_API_URL = 'segip_gabinete_gas_api_url_v5';
+const STORAGE_KEY_SYNC_INTERVAL = 'segip_gabinete_sync_interval_v5';
+
+// Limpieza proactiva de claves de sesión previas
+try {
+  ['segip_gabinete_session_v4', 'segip_gabinete_session_v3', 'segip_gabinete_session_v2', 'segip_gabinete_session'].forEach((k) => {
+    localStorage.removeItem(k);
+  });
+} catch {}
+
+export interface UserSession {
+  token: string;
+  usuario: UsuarioActivo;
+  expiraMs: number;
+}
 
 export const storageService = {
-  getCurrentUser(): UsuarioActivo {
+  getSession(): UserSession | null {
     try {
-      const data = localStorage.getItem(STORAGE_KEY_USER);
-      if (data) {
-        return JSON.parse(data);
+      const raw = localStorage.getItem(STORAGE_KEY_SESSION);
+      if (raw) {
+        const session: UserSession = JSON.parse(raw);
+        if (session && session.expiraMs && Date.now() < session.expiraMs) {
+          // Normalizar rol de SAMUEL a DESCARTE si viniera como PORTERO
+          if (session.usuario && (session.usuario.rol === 'PORTERO' || session.usuario.cargo === 'DESCARTE')) {
+            session.usuario.rol = 'DESCARTE';
+          }
+          return session;
+        } else {
+          // Sesión expirada
+          localStorage.removeItem(STORAGE_KEY_SESSION);
+        }
       }
     } catch {}
-    return USUARIOS_AUTORIZADOS[0]; // Maycol Ávila (ADMINISTRADOR) por defecto
+    return null;
   },
 
-  setCurrentUser(user: UsuarioActivo): void {
+  setSession(token: string, usuario: UsuarioActivo, expiraMs: number): void {
     try {
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+      // Normalizar para Samuel
+      if (usuario.rol === 'PORTERO' || usuario.id === 'usr-maycol' || usuario.nombre.toUpperCase() === 'SAMUEL') {
+        usuario.rol = 'DESCARTE';
+        usuario.cargo = 'DESCARTE';
+      }
+      const session: UserSession = {
+        token,
+        usuario,
+        expiraMs,
+      };
+      localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
     } catch {}
+  },
+
+  clearSession(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEY_SESSION);
+    } catch {}
+  },
+
+  getCurrentUser(): UsuarioActivo | null {
+    const session = this.getSession();
+    return session ? session.usuario : null;
   },
 
   getApiUrl(): string {
@@ -63,4 +107,24 @@ export const storageService = {
     const clamped = Math.max(10, Math.min(30, seconds));
     localStorage.setItem(STORAGE_KEY_SYNC_INTERVAL, String(clamped));
   },
+
+  getDeletedIds(): string[] {
+    try {
+      const raw = localStorage.getItem('segip_gabinete_deleted_ids_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addDeletedId(id: string): void {
+    try {
+      const current = this.getDeletedIds();
+      if (!current.includes(id)) {
+        current.push(id);
+        localStorage.setItem('segip_gabinete_deleted_ids_v1', JSON.stringify(current));
+      }
+    } catch {}
+  },
 };
+
