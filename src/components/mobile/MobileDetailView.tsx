@@ -76,7 +76,7 @@ export const MobileDetailView: React.FC<MobileDetailViewProps> = ({
                   {tramite.nombreCompleto}
                 </h3>
                 <p className="text-xs text-slate-400 font-mono mt-0.5">
-                  {enmascararCI(tramite.cedulaIdentidad)} • N.º {tramite.numero}
+                  {enmascararCI(tramite.cedulaIdentidad, false, tramite.tieneComplemento, tramite.complemento)} • N.º {tramite.numero}
                 </p>
               </div>
             </div>
@@ -131,7 +131,11 @@ export const MobileDetailView: React.FC<MobileDetailViewProps> = ({
 
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <span className="text-slate-400">Qué está corrigiendo</span>
-                <span className="font-bold text-slate-800 text-right">{tramite.queEstaCorrigiendo}</span>
+                <span className="font-bold text-slate-800 text-right">
+                  {tramite.queEstaCorrigiendo === 'Otro'
+                    ? `Otro: ${tramite.otroTipoSaneamiento || ''}`
+                    : tramite.queEstaCorrigiendo}
+                </span>
               </div>
 
               <div className="border-b border-slate-100 pb-2.5">
@@ -139,6 +143,56 @@ export const MobileDetailView: React.FC<MobileDetailViewProps> = ({
                 <p className="text-slate-700 bg-slate-50 p-3 rounded-2xl border border-slate-100 leading-relaxed font-medium">
                   {tramite.detalleCorreccion || 'Sin detalle especificado.'}
                 </p>
+              </div>
+
+              {/* DOCUMENTACIÓN PRESENTADA (8 DOCUMENTOS) */}
+              <div className="border-b border-slate-100 pb-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold uppercase text-[10px]">
+                    Documentación presentada
+                  </span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-50 text-segip-800 border border-blue-200">
+                    {tramite.documentacionPresentada?.length || 0} de 8
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  {[
+                    'FUTA',
+                    'Certificado de nacimiento',
+                    'Certificado de matrimonio',
+                    'Cédula de identidad del padre',
+                    'Cédula de identidad de la madre',
+                    'Certificado de defunción',
+                    'Resolución administrativa del CERESI',
+                    'Partida única del CERESI',
+                  ].map((doc, idx) => {
+                    const presentado = (tramite.documentacionPresentada || []).includes(doc);
+                    return (
+                      <div
+                        key={doc}
+                        className={`p-2 rounded-xl flex items-center justify-between text-[11px] ${
+                          presentado
+                            ? 'bg-emerald-50/70 border border-emerald-200 text-emerald-900 font-semibold'
+                            : 'bg-slate-50/60 border border-slate-150 text-slate-400'
+                        }`}
+                      >
+                        <span className="truncate pr-2">
+                          <span className="font-mono text-[10px] mr-1.5 opacity-60">{idx + 1}.</span>
+                          {doc}
+                        </span>
+                        {presentado ? (
+                          <span className="text-emerald-600 font-black text-xs shrink-0 flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span className="text-[9px] uppercase">Presentado</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-[10px] italic shrink-0">No presentado</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">

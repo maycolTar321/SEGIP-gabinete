@@ -1,0 +1,4 @@
+# SEGIP Gabinete Jurídico - Privado / Uso Interno de Oficina
+# Bloquear indexación de todos los motores de búsqueda (Google, Bing, Yahoo, etc.)
+User-agent: *
+Disallow: /

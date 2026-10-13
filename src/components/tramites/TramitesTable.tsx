@@ -33,12 +33,13 @@ export const TramitesTable: React.FC<TramitesTableProps> = ({
     }
   };
 
-  const formatearCI = (ci: string) => {
+  const formatearCI = (ci: string, tieneComp?: boolean, comp?: string) => {
+    const ciCompleto = tieneComp && comp ? `${ci}-${comp}` : ci;
     if (esDescarte) {
-      return contextEnmascarar(ci, true);
+      return contextEnmascarar(ciCompleto, true);
     }
-    if (!enmascararCI) return ci;
-    return contextEnmascarar(ci, true);
+    if (!enmascararCI) return ciCompleto;
+    return contextEnmascarar(ciCompleto, true);
   };
 
   return (
@@ -125,7 +126,7 @@ export const TramitesTable: React.FC<TramitesTableProps> = ({
 
                     {/* Cédula de Identidad */}
                     <td className="py-3.5 px-4 font-mono text-slate-600 font-medium">
-                      {formatearCI(item.cedulaIdentidad)}
+                      {formatearCI(item.cedulaIdentidad, item.tieneComplemento, item.complemento)}
                     </td>
 
                     {/* Modalidad */}
@@ -143,9 +144,16 @@ export const TramitesTable: React.FC<TramitesTableProps> = ({
 
                     {/* Qué está corrigiendo */}
                     <td className="py-3.5 px-4">
-                      <span className="text-slate-800 font-medium line-clamp-1" title={item.queEstaCorrigiendo}>
-                        {item.queEstaCorrigiendo}
-                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-800 font-medium line-clamp-1" title={item.queEstaCorrigiendo === 'Otro' ? (item.otroTipoSaneamiento || 'Otro') : item.queEstaCorrigiendo}>
+                          {item.queEstaCorrigiendo === 'Otro' ? (item.otroTipoSaneamiento || 'Otro') : item.queEstaCorrigiendo}
+                        </span>
+                        {item.documentacionPresentada && item.documentacionPresentada.length > 0 && (
+                          <span className="inline-flex items-center text-[10px] text-segip-700 font-semibold">
+                            📄 {item.documentacionPresentada.length}/8 docs
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Delegado */}

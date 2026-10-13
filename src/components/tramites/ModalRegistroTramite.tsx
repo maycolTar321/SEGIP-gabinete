@@ -1,38 +1,38 @@
 import React, { useState } from 'react';
-import { X, User, CreditCard, Shield, Database, Layers, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { X, User, CreditCard, Shield, Layers, Check, AlertCircle, Loader2, FileCheck } from 'lucide-react';
 import { useTramites } from '../../context/TramitesContext';
-import { ModalidadTramite, DelegadoTramite } from '../../types';
+import { ModalidadTramite, DelegadoTramite, DOCUMENTOS_OFICIALES, OPCIONES_SANEAMIENTO_BASE } from '../../types';
+import { formatearNombreCompleto, formatearDetalleCorreccion } from '../../utils/textUtils';
 
 interface ModalRegistroTramiteProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const OPCIONES_CORRECCION = [
-  'Nombres y apellidos',
-  'Fecha de nacimiento',
-  'Lugar de nacimiento',
-  'Datos de filiación',
-  'Estado civil',
-  'Corrección de cédula / duplicidad',
-  'Otro dato biográfico',
-];
-
 export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOpen, onClose }) => {
   const { registrarTramite } = useTramites();
 
   const [nombreCompleto, setNombreCompleto] = useState('');
   const [cedulaIdentidad, setCedulaIdentidad] = useState('');
+  const [tieneComplemento, setTieneComplemento] = useState(false);
+  const [complemento, setComplemento] = useState('');
   const [modalidad, setModalidad] = useState<ModalidadTramite>('Consolidado');
-  const [queEstaCorrigiendo, setQueEstaCorrigiendo] = useState('Nombres y apellidos');
-  const [otroCampo, setOtroCampo] = useState('');
+  const [queEstaCorrigiendo, setQueEstaCorrigiendo] = useState<string>('Nombres y apellidos');
+  const [otroTipoSaneamiento, setOtroTipoSaneamiento] = useState('');
   const [detalleCorreccion, setDetalleCorreccion] = useState('');
+  const [documentacionPresentada, setDocumentacionPresentada] = useState<string[]>([]);
   const [delegado, setDelegado] = useState<DelegadoTramite>('Maycol Ávila');
   const [observaciones, setObservaciones] = useState('');
   const [errorValidacion, setErrorValidacion] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
   if (!isOpen) return null;
+
+  const toggleDocumento = (doc: string) => {
+    setDocumentacionPresentada((prev) =>
+      prev.includes(doc) ? prev.filter((d) => d !== doc) : [...prev, doc]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,36 +46,45 @@ export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOp
       setErrorValidacion('La cédula de identidad es obligatoria.');
       return;
     }
-
-    const campoCorreccionFinal =
-      queEstaCorrigiendo === 'Otro dato biográfico' && otroCampo.trim()
-        ? `Otro: ${otroCampo.trim()}`
-        : queEstaCorrigiendo;
-
-    if (!campoCorreccionFinal) {
-      setErrorValidacion('Debe especificar qué está corrigiendo.');
+    if (tieneComplemento && !complemento.trim()) {
+      setErrorValidacion('Ha indicado que tiene complemento. Ingrese el valor del complemento.');
+      return;
+    }
+    if (queEstaCorrigiendo === 'Otro' && !otroTipoSaneamiento.trim()) {
+      setErrorValidacion('Debe especificar el tipo de saneamiento cuando selecciona "Otro".');
+      return;
+    }
+    if (!detalleCorreccion.trim()) {
+      setErrorValidacion('Debe ingresar el detalle de la corrección.');
       return;
     }
 
     try {
       setGuardando(true);
       await registrarTramite({
-        nombreCompleto,
-        cedulaIdentidad,
+        nombreCompleto: formatearNombreCompleto(nombreCompleto),
+        cedulaIdentidad: cedulaIdentidad.trim(),
+        tieneComplemento,
+        complemento: tieneComplemento ? complemento.trim().toUpperCase() : '',
         modalidad,
-        queEstaCorrigiendo: campoCorreccionFinal,
-        detalleCorreccion,
+        queEstaCorrigiendo,
+        otroTipoSaneamiento: queEstaCorrigiendo === 'Otro' ? otroTipoSaneamiento.trim() : undefined,
+        detalleCorreccion: formatearDetalleCorreccion(detalleCorreccion),
+        documentacionPresentada,
         delegado,
-        observaciones,
+        observaciones: observaciones.trim(),
       });
 
       // Limpiar formulario y cerrar
       setNombreCompleto('');
       setCedulaIdentidad('');
+      setTieneComplemento(false);
+      setComplemento('');
       setModalidad('Consolidado');
       setQueEstaCorrigiendo('Nombres y apellidos');
-      setOtroCampo('');
+      setOtroTipoSaneamiento('');
       setDetalleCorreccion('');
+      setDocumentacionPresentada([]);
       setDelegado('Maycol Ávila');
       setObservaciones('');
       onClose();
@@ -87,8 +96,8 @@ export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden transform animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 select-none">
+      <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden transform animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
         {/* Encabezado */}
         <div className="p-6 pb-4 border-b border-slate-100 flex items-center justify-between">
           <div>
@@ -124,8 +133,8 @@ export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOp
               Datos del usuario
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Nombre completo del usuario <span className="text-rose-500">*</span>
                 </label>
@@ -136,8 +145,9 @@ export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOp
                     required
                     value={nombreCompleto}
                     onChange={(e) => setNombreCompleto(e.target.value)}
+                    onBlur={(e) => setNombreCompleto(formatearNombreCompleto(e.target.value))}
                     placeholder="Ej. Juan Carlos Mamani Quispe"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500 text-slate-800"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500 text-slate-800"
                   />
                 </div>
               </div>
@@ -150,13 +160,63 @@ export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOp
                   <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
+                    inputMode="numeric"
                     required
                     value={cedulaIdentidad}
-                    onChange={(e) => setCedulaIdentidad(e.target.value)}
-                    placeholder="Ej. 4928172"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500 text-slate-800"
+                    onChange={(e) => setCedulaIdentidad(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="Ej. 12345678"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500 text-slate-800 font-mono"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Switch de Complemento */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-slate-800 block">
+                  ¿Tiene complemento?
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  Ejemplo: 1A, CH, LP (solo si la cédula lo requiere)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTieneComplemento(false);
+                      setComplemento('');
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      !tieneComplemento ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'
+                    }`}
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTieneComplemento(true)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      tieneComplemento ? 'bg-segip-700 text-white shadow-xs' : 'text-slate-500'
+                    }`}
+                  >
+                    Sí
+                  </button>
+                </div>
+
+                {tieneComplemento && (
+                  <input
+                    type="text"
+                    maxLength={5}
+                    value={complemento}
+                    onChange={(e) => setComplemento(e.target.value.toUpperCase())}
+                    placeholder="Comp. (Ej. 1A)"
+                    className="w-28 px-2.5 py-1.5 bg-white border border-segip-300 rounded-xl text-xs font-bold text-segip-900 focus:outline-none focus:ring-2 focus:ring-segip-500 shadow-2xs"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -165,148 +225,167 @@ export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOp
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-segip-600" />
-              Flujo y modalidad
+              Parámetros institucionales
             </h4>
 
-            {/* Flujo único informativo */}
-            <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-segip-900 block">Flujo: Saneamiento de datos</span>
-                <span className="text-[11px] text-segip-600">Tipo de trámite institucional único</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-segip-700 text-white flex items-center justify-center shrink-0">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-segip-900">Saneamiento de datos</div>
+                  <div className="text-[10px] text-segip-700">Flujo único institucional</div>
+                </div>
               </div>
-              <span className="text-[11px] font-bold px-2.5 py-1 bg-segip-600 text-white rounded-lg shadow-xs">
-                Estándar
-              </span>
-            </div>
 
-            {/* Selector de Modalidad */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Modalidad del trámite <span className="text-rose-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setModalidad('Consolidado')}
-                  className={`p-3 rounded-xl border flex items-center gap-3 transition-all text-left ${
-                    modalidad === 'Consolidado'
-                      ? 'border-segip-600 bg-segip-50/50 text-segip-800 shadow-xs ring-1 ring-segip-500'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  <div className={`p-2 rounded-lg ${modalidad === 'Consolidado' ? 'bg-segip-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                    <Database className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold">Consolidado</p>
-                    <p className="text-[11px] text-slate-400">Datos consolidados</p>
-                  </div>
-                </button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Modalidad <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalidad('Consolidado')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      modalidad === 'Consolidado'
+                        ? 'bg-segip-700 text-white border-segip-700 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Consolidado</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setModalidad('No consolidado')}
-                  className={`p-3 rounded-xl border flex items-center gap-3 transition-all text-left ${
-                    modalidad === 'No consolidado'
-                      ? 'border-segip-600 bg-segip-50/50 text-segip-800 shadow-xs ring-1 ring-segip-500'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  <div className={`p-2 rounded-lg ${modalidad === 'No consolidado' ? 'bg-segip-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold">No consolidado</p>
-                    <p className="text-[11px] text-slate-400">Sin consolidar</p>
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalidad('No consolidado')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      modalidad === 'No consolidado'
+                        ? 'bg-segip-700 text-white border-segip-700 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5 opacity-70" />
+                    <span>No consolidado</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Sección 3: Corrección requerida */}
+          {/* Sección 3: Datos de la Corrección */}
           <div className="space-y-3 pt-2 border-t border-slate-100">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                ¿Qué está corrigiendo? <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={queEstaCorrigiendo}
-                onChange={(e) => setQueEstaCorrigiendo(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500"
-              >
-                {OPCIONES_CORRECCION.map((opc) => (
-                  <option key={opc} value={opc}>
-                    {opc}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Datos de la corrección
+            </h4>
 
-            {queEstaCorrigiendo === 'Otro dato biográfico' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Especifique el campo:
+                  ¿Qué está corrigiendo? <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={queEstaCorrigiendo}
+                  onChange={(e) => setQueEstaCorrigiendo(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500"
+                >
+                  {OPCIONES_SANEAMIENTO_BASE.map((opc) => (
+                    <option key={opc} value={opc}>
+                      {opc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Licenciado delegado <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={delegado}
+                  onChange={(e) => setDelegado(e.target.value as DelegadoTramite)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500"
+                >
+                  <option value="Maycol Ávila">Maycol Ávila</option>
+                  <option value="Ximena Veliz">Ximena Veliz</option>
+                </select>
+              </div>
+            </div>
+
+            {queEstaCorrigiendo === 'Otro' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Especifique el tipo de saneamiento <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={otroCampo}
-                  onChange={(e) => setOtroCampo(e.target.value)}
-                  placeholder="Ej. Fotografía o huella ilegible"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500"
+                  required
+                  value={otroTipoSaneamiento}
+                  onChange={(e) => setOtroTipoSaneamiento(e.target.value)}
+                  placeholder="Describa el tipo de corrección solicitado"
+                  className="w-full px-3 py-2 bg-white border border-segip-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-segip-500 shadow-2xs"
                 />
               </div>
             )}
 
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-xs font-semibold text-slate-700">
-                  Detalle de la corrección
-                </label>
-                <span className="text-[11px] text-slate-400">
-                  {detalleCorreccion.length}/200
-                </span>
-              </div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Detalle de la corrección <span className="text-rose-500">*</span>
+              </label>
               <textarea
-                maxLength={200}
                 rows={2}
+                maxLength={200}
+                required
                 value={detalleCorreccion}
                 onChange={(e) => setDetalleCorreccion(e.target.value)}
-                placeholder="Especifique qué dato se debe corregir (ej. error tipográfico en segundo apellido según certificado)..."
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500 text-slate-800 resize-none"
+                onBlur={(e) => setDetalleCorreccion(formatearDetalleCorreccion(e.target.value))}
+                placeholder="Especifique qué dato se debe corregir (ej. Corrección de nombre en registro civil)"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500 text-slate-800 resize-none"
               />
             </div>
           </div>
 
-          {/* Sección 4: Delegado asignado */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <label className="block text-xs font-semibold text-slate-700">
-              Licenciado delegado asignado <span className="text-rose-500">*</span>
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {(['Maycol Ávila', 'Ximena Veliz'] as DelegadoTramite[]).map((del) => {
-                const esSeleccionado = delegado === del;
+          {/* Sección 4: Checklist de 8 Documentos Oficiales */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                  DOCUMENTACIÓN PRESENTADA
+                </h4>
+                <p className="text-[10px] text-slate-500">
+                  Marque los documentos físicos presentados por el ciudadano
+                </p>
+              </div>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-segip-800 border border-blue-200">
+                {documentacionPresentada.length} / 8 seleccionados
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {DOCUMENTOS_OFICIALES.map((doc, idx) => {
+                const seleccionado = documentacionPresentada.includes(doc);
                 return (
                   <button
-                    key={del}
+                    key={doc}
                     type="button"
-                    onClick={() => setDelegado(del)}
-                    className={`p-3 rounded-xl border flex items-center gap-3 transition-all text-left ${
-                      esSeleccionado
-                        ? 'border-segip-600 bg-segip-50/50 text-segip-800 shadow-xs ring-1 ring-segip-500 font-semibold'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                    onClick={() => toggleDocumento(doc)}
+                    className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition-all ${
+                      seleccionado
+                        ? 'bg-blue-50/80 border-segip-500 text-segip-900 shadow-2xs'
+                        : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
+                    <span className="text-[11px] font-semibold truncate leading-tight pr-2">
+                      <span className="text-slate-400 font-mono mr-1.5">{idx + 1}.</span>
+                      {doc}
+                    </span>
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                        esSeleccionado ? 'bg-segip-700 text-white' : 'bg-slate-200 text-slate-600'
+                      className={`w-4 h-4 rounded-md flex items-center justify-center border shrink-0 ${
+                        seleccionado ? 'bg-segip-600 border-segip-600 text-white' : 'bg-white border-slate-300'
                       }`}
                     >
-                      {del.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-xs">{del}</p>
-                      <p className="text-[11px] text-slate-400">Operador Jurídico</p>
+                      {seleccionado && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
                   </button>
                 );
@@ -314,50 +393,49 @@ export const ModalRegistroTramite: React.FC<ModalRegistroTramiteProps> = ({ isOp
             </div>
           </div>
 
-          {/* Observaciones generales */}
-          <div className="pt-2 border-t border-slate-100">
+          {/* Observaciones */}
+          <div className="space-y-1 pt-2 border-t border-slate-100">
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Observaciones adicionales
+              Observaciones (opcional)
             </label>
             <input
               type="text"
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Ej. Documentación soporte presentada en fotocopia legalizada."
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500 text-slate-800"
+              placeholder="Detalles complementarios"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-segip-500"
             />
           </div>
-        </form>
 
-        {/* Pie con botones */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={guardando}
-            className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={guardando}
-            className="px-6 py-2.5 bg-segip-700 hover:bg-segip-800 text-white rounded-xl text-sm font-bold shadow-md shadow-segip-900/20 hover:shadow-lg transition-all flex items-center gap-2 active:scale-95"
-          >
-            {guardando ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Guardando...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4 stroke-[3]" />
-                <span>Guardar trámite</span>
-              </>
-            )}
-          </button>
-        </div>
+          {/* Pie del modal con acciones */}
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={guardando}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={guardando}
+              className="px-5 py-2.5 bg-gradient-to-r from-[#0A3871] to-[#1E6AD1] text-white rounded-xl text-xs font-bold shadow-md hover:brightness-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+            >
+              {guardando ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Registrando...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Registrar trámite</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

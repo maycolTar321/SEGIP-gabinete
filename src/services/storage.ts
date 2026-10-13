@@ -21,16 +21,16 @@ export const USUARIOS_AUTORIZADOS: UsuarioActivo[] = [
   },
 ];
 
-// URL Oficial de la Web App en Google Apps Script
-export const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyQkzv1pQj_iQrdSJZMUhVdC5YpepNI-VcLqW3Zuqm-J17do6BkxGPFN0rO7OSipO2sgw/exec';
+// URL Oficial de la Web App en Google Apps Script (Versión 2.2.0 Activa)
+export const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwzVP9Ddi5DM9nzFipB_VjQjC59Kz_LPmNAr0nPBlqiuioXoxc7OxnLiLnnGR626Yl2Xw/exec';
 
 const STORAGE_KEY_SESSION = 'segip_gabinete_session_v5';
-const STORAGE_KEY_API_URL = 'segip_gabinete_gas_api_url_v5';
+const STORAGE_KEY_API_URL = 'segip_gabinete_gas_api_url_v6';
 const STORAGE_KEY_SYNC_INTERVAL = 'segip_gabinete_sync_interval_v5';
 
-// Limpieza proactiva de claves de sesión previas
+// Limpieza proactiva de claves de sesión y URLs previas
 try {
-  ['segip_gabinete_session_v4', 'segip_gabinete_session_v3', 'segip_gabinete_session_v2', 'segip_gabinete_session'].forEach((k) => {
+  ['segip_gabinete_gas_api_url_v5', 'segip_gabinete_session_v4', 'segip_gabinete_session_v3', 'segip_gabinete_session_v2', 'segip_gabinete_session'].forEach((k) => {
     localStorage.removeItem(k);
   });
 } catch {}

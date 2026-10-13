@@ -36,7 +36,7 @@ export const MobileTramiteCard: React.FC<MobileTramiteCardProps> = ({ tramite, o
               {tramite.nombreCompleto}
             </h4>
             <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-              {enmascararCI(tramite.cedulaIdentidad)} • N.º {tramite.numero}
+              {enmascararCI(tramite.cedulaIdentidad, false, tramite.tieneComplemento, tramite.complemento)} • N.º {tramite.numero}
             </p>
           </div>
         </div>
@@ -57,17 +57,26 @@ export const MobileTramiteCard: React.FC<MobileTramiteCardProps> = ({ tramite, o
         </div>
       </div>
 
-      {/* Fila inferior de metadatos: Modalidad, Delegado y flecha */}
+      {/* Fila inferior de metadatos: Modalidad, Corrección, Delegado y flecha */}
       <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
-        <div className="flex items-center gap-2 truncate">
+        <div className="flex items-center gap-1.5 truncate">
           <span className="px-2 py-0.5 rounded-md bg-blue-50 text-segip-800 font-bold text-[10px] border border-blue-100 truncate">
             {tramite.modalidad}
           </span>
-          <span className="text-slate-400">•</span>
-          <div className="flex items-center gap-1 truncate text-slate-500 font-medium">
-            <User className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="truncate">{tramite.delegado}</span>
-          </div>
+          <span className="text-slate-300">•</span>
+          <span className="truncate text-slate-600 font-medium text-[10px]">
+            {tramite.queEstaCorrigiendo === 'Otro'
+              ? (tramite.otroTipoSaneamiento || 'Otro')
+              : tramite.queEstaCorrigiendo}
+          </span>
+          {tramite.documentacionPresentada && tramite.documentacionPresentada.length > 0 && (
+            <>
+              <span className="text-slate-300">•</span>
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
+                {tramite.documentacionPresentada.length}/8 docs
+              </span>
+            </>
+          )}
         </div>
 
         <div className="text-slate-300 shrink-0 pl-1">

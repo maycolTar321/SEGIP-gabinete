@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Trash2, AlertTriangle, Loader2, X } from 'lucide-react';
+import { Trash2, AlertTriangle, Loader2, X, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import type { Tramite } from '../../types';
 import { useTramites } from '../../context/TramitesContext';
+
+const CLAVE_ADMIN_AUTORIZADA = 'panicat123';
 
 interface ModalConfirmarEliminacionProps {
   tramite: Tramite | null;
@@ -18,16 +20,24 @@ export const ModalConfirmarEliminacion: React.FC<ModalConfirmarEliminacionProps>
 }) => {
   const { eliminarTramite } = useTramites();
   const [eliminando, setEliminando] = useState(false);
+  const [claveAdmin, setClaveAdmin] = useState('');
+  const [mostrarClave, setMostrarClave] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen || !tramite) return null;
 
   const handleEliminar = async () => {
+    if (claveAdmin.trim() !== CLAVE_ADMIN_AUTORIZADA) {
+      setError('Contraseña incorrecta. Se requiere la clave de administrador para eliminar.');
+      return;
+    }
+
     try {
       setEliminando(true);
       setError(null);
       const res = await eliminarTramite(tramite.id);
       if (res.success) {
+        setClaveAdmin('');
         onClose();
         if (onExito) onExito();
       } else {
@@ -47,7 +57,11 @@ export const ModalConfirmarEliminacion: React.FC<ModalConfirmarEliminacionProps>
         <div className="relative pt-6 px-6 pb-2 text-center">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              setClaveAdmin('');
+              setError(null);
+              onClose();
+            }}
             disabled={eliminando}
             className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
           >
@@ -70,8 +84,9 @@ export const ModalConfirmarEliminacion: React.FC<ModalConfirmarEliminacionProps>
         {/* Ficha del registro a eliminar */}
         <div className="px-6 py-3 space-y-3">
           {error && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-semibold">
-              {error}
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-semibold flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -94,12 +109,34 @@ export const ModalConfirmarEliminacion: React.FC<ModalConfirmarEliminacionProps>
             </div>
           </div>
 
-          {/* Alerta de acción irreversible */}
-          <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 flex items-start gap-2.5 text-amber-800 text-xs leading-relaxed">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <span>
-              <strong>Atención:</strong> Esta eliminación quedará registrada en el historial de auditoría del sistema.
-            </span>
+          {/* Campo obligatorio de contraseña administrativa (panicat123) */}
+          <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 space-y-1.5 text-left">
+            <label className="block text-xs font-bold text-amber-950">
+              Clave de Autorización (Administrador)
+            </label>
+            <div className="relative">
+              <input
+                type={mostrarClave ? 'text' : 'password'}
+                value={claveAdmin}
+                onChange={(e) => {
+                  setClaveAdmin(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="Ingrese clave para autorizar"
+                autoFocus
+                className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarClave(!mostrarClave)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                {mostrarClave ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-800">
+              Ingrese la clave del Administrador para proceder con la eliminación permanente.
+            </p>
           </div>
         </div>
 
@@ -126,7 +163,11 @@ export const ModalConfirmarEliminacion: React.FC<ModalConfirmarEliminacionProps>
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              setClaveAdmin('');
+              setError(null);
+              onClose();
+            }}
             disabled={eliminando}
             className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition-all active:scale-98 cursor-pointer"
           >

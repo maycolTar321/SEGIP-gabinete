@@ -17,6 +17,7 @@ import { ReportsView } from './components/reports/ReportsView';
 import { UsersView } from './components/users/UsersView';
 import { ConfigView } from './components/config/ConfigView';
 import { LoginView } from './components/auth/LoginView';
+import { AccesoOficina } from './components/auth/AccesoOficina';
 
 // Componentes dedicados para experiencia Mobile-First
 import { MobileHeader } from './components/mobile/MobileHeader';
@@ -306,6 +307,12 @@ const DashboardContent: React.FC = () => {
 };
 
 export default function App() {
+  const [portalDesbloqueado, setPortalDesbloqueado] = useState<boolean>(false);
+
+  if (!portalDesbloqueado) {
+    return <AccesoOficina onDesbloqueado={() => setPortalDesbloqueado(true)} />;
+  }
+
   return (
     <TramitesProvider>
       <DashboardContent />

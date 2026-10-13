@@ -63,7 +63,7 @@ export const ModalDetalleTramite: React.FC<ModalDetalleTramiteProps> = ({
                   )}
                 </div>
                 <p className="text-xs text-slate-500 font-mono mt-0.5">
-                  {enmascararCI(tramite.cedulaIdentidad)} • N.º {tramite.numero}
+                  {enmascararCI(tramite.cedulaIdentidad, false, tramite.tieneComplemento, tramite.complemento)} • N.º {tramite.numero}
                 </p>
               </div>
             </div>
@@ -126,7 +126,11 @@ export const ModalDetalleTramite: React.FC<ModalDetalleTramiteProps> = ({
 
                 <div>
                   <span className="text-slate-400 block text-[11px]">¿Qué está corrigiendo?</span>
-                  <span className="font-bold text-slate-800">{tramite.queEstaCorrigiendo}</span>
+                  <span className="font-bold text-slate-800">
+                    {tramite.queEstaCorrigiendo === 'Otro'
+                      ? `Otro: ${tramite.otroTipoSaneamiento || ''}`
+                      : tramite.queEstaCorrigiendo}
+                  </span>
                 </div>
 
                 <div>
@@ -142,6 +146,56 @@ export const ModalDetalleTramite: React.FC<ModalDetalleTramiteProps> = ({
                   <p className="font-medium text-slate-700 mt-0.5 leading-relaxed bg-white p-2.5 rounded-xl border border-slate-200">
                     {tramite.detalleCorreccion || 'Sin detalle específico registrado.'}
                   </p>
+                </div>
+
+                {/* DOCUMENTACIÓN PRESENTADA (8 DOCUMENTOS) */}
+                <div className="sm:col-span-2 pt-2 border-t border-slate-200/70 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-bold uppercase text-[11px]">
+                      Documentación presentada
+                    </span>
+                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-blue-50 text-segip-800 border border-blue-200">
+                      {tramite.documentacionPresentada?.length || 0} de 8 documentos
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {[
+                      'FUTA',
+                      'Certificado de nacimiento',
+                      'Certificado de matrimonio',
+                      'Cédula de identidad del padre',
+                      'Cédula de identidad de la madre',
+                      'Certificado de defunción',
+                      'Resolución administrativa del CERESI',
+                      'Partida única del CERESI',
+                    ].map((doc, idx) => {
+                      const presentado = (tramite.documentacionPresentada || []).includes(doc);
+                      return (
+                        <div
+                          key={doc}
+                          className={`p-2 rounded-xl flex items-center justify-between text-xs ${
+                            presentado
+                              ? 'bg-emerald-50/80 border border-emerald-200 text-emerald-900 font-semibold'
+                              : 'bg-white border border-slate-200 text-slate-400'
+                          }`}
+                        >
+                          <span className="truncate pr-2">
+                            <span className="font-mono text-[10px] mr-1.5 opacity-60">{idx + 1}.</span>
+                            {doc}
+                          </span>
+                          {presentado ? (
+                            <span className="text-emerald-600 font-black text-xs shrink-0 flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span className="text-[9px] uppercase">Presentado</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-[10px] italic shrink-0">No presentado</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>

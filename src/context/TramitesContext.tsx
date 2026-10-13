@@ -3,6 +3,7 @@ import type { Tramite, UsuarioActivo, FiltrosTramite, Estadisticas, DelegadoTram
 import { storageService } from '../services/storage';
 import { gasApiService } from '../services/gasApi';
 import { formatearFechaEspanol, formatearHoraEspanol } from '../utils/dateUtils';
+import { formatearNombreCompleto, formatearDetalleCorreccion, formatearTipoSaneamiento } from '../utils/textUtils';
 
 interface TramitesContextType {
   tramites: Tramite[];
@@ -25,15 +26,19 @@ interface TramitesContextType {
   cambiarIntervaloSegundos: (seg: number) => void;
   mensajeError: string | null;
   limpiarError: () => void;
-  enmascararCI: (ci: string, forzarMascara?: boolean) => string;
+  enmascararCI: (ci: string, forzarMascara?: boolean, tieneComplemento?: boolean, complemento?: string) => string;
   formatearFecha: (fecha: string | undefined | null) => string;
   formatearHora: (fecha: string | undefined | null) => string;
   registrarTramite: (nuevo: {
     nombreCompleto: string;
     cedulaIdentidad: string;
+    tieneComplemento?: boolean;
+    complemento?: string;
     modalidad: ModalidadTramite;
     queEstaCorrigiendo: string;
+    otroTipoSaneamiento?: string;
     detalleCorreccion: string;
+    documentacionPresentada?: string[];
     delegado: DelegadoTramite;
     observaciones?: string;
   }) => Promise<{ success: boolean; tramite?: Tramite; message?: string }>;
@@ -92,14 +97,15 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     storageService.setSession(usuario.token || `tok-${Date.now()}`, usuario, expiraMs);
   };
 
-  const enmascararCI = (ci: string, forzarMascara = false): string => {
+  const enmascararCI = (ci: string, forzarMascara = false, tieneComplemento = false, complemento?: string): string => {
     const limpia = (ci || '').trim();
     if (!limpia) return 'C.I. *******';
+    const compStr = tieneComplemento && complemento && complemento.trim() ? `-${complemento.trim().toUpperCase()}` : '';
     if (esDescarte || forzarMascara) {
       const ultimo = limpia.slice(-1);
-      return `C.I. *******${ultimo}`;
+      return `C.I. *******${ultimo}${compStr}`;
     }
-    return `C.I. ${limpia}`;
+    return `C.I. ${limpia}${compStr}`;
   };
 
   const cambiarIntervaloSegundos = (seg: number) => {
@@ -213,11 +219,14 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const tramitesFiltrados = useMemo(() => {
     return tramites.filter((t) => {
       if (filtros.busqueda.trim()) {
-        const query = filtros.busqueda.toLowerCase();
+        const query = filtros.busqueda.toLowerCase().trim();
         const coincideNombre = t.nombreCompleto.toLowerCase().includes(query);
         const coincideCI = t.cedulaIdentidad.toLowerCase().includes(query);
+        const coincideComp = t.complemento ? t.complemento.toLowerCase().includes(query) : false;
+        const coincideCIComp = t.complemento ? `${t.cedulaIdentidad}-${t.complemento}`.toLowerCase().includes(query) : false;
         const coincideNum = t.numero.toLowerCase().includes(query);
-        if (!coincideNombre && !coincideCI && !coincideNum) return false;
+        const coincideOtro = t.otroTipoSaneamiento ? t.otroTipoSaneamiento.toLowerCase().includes(query) : false;
+        if (!coincideNombre && !coincideCI && !coincideComp && !coincideCIComp && !coincideNum && !coincideOtro) return false;
       }
 
       if (filtros.modalidad !== 'TODAS') {
@@ -242,9 +251,13 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const registrarTramite = async (nuevo: {
     nombreCompleto: string;
     cedulaIdentidad: string;
+    tieneComplemento?: boolean;
+    complemento?: string;
     modalidad: ModalidadTramite;
     queEstaCorrigiendo: string;
+    otroTipoSaneamiento?: string;
     detalleCorreccion: string;
+    documentacionPresentada?: string[];
     delegado: DelegadoTramite;
     observaciones?: string;
   }) => {
@@ -258,22 +271,38 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const nuevoCorrelativo = maxCorrelativo + 1;
     const nuevoNumero = String(nuevoCorrelativo).padStart(3, '0');
 
+    const tieneComp = !!nuevo.tieneComplemento;
+    const compVal = tieneComp ? (nuevo.complemento || '').trim().toUpperCase() : '';
+
     const tramiteNuevo: Tramite = {
       id: `tra-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       numero: nuevoNumero,
       correlativo: nuevoCorrelativo,
-      nombreCompleto: nuevo.nombreCompleto.trim(),
+      nombreCompleto: formatearNombreCompleto(nuevo.nombreCompleto),
       cedulaIdentidad: nuevo.cedulaIdentidad.trim(),
+      tieneComplemento: tieneComp,
+      complemento: compVal,
       flujo: 'Saneamiento de datos',
       modalidad: nuevo.modalidad,
-      queEstaCorrigiendo: nuevo.queEstaCorrigiendo.trim(),
-      detalleCorreccion: nuevo.detalleCorreccion.trim(),
+      queEstaCorrigiendo: nuevo.queEstaCorrigiendo === 'Otro' ? 'Otro' : formatearTipoSaneamiento(nuevo.queEstaCorrigiendo),
+      otroTipoSaneamiento: nuevo.queEstaCorrigiendo === 'Otro' ? (nuevo.otroTipoSaneamiento || '').trim() : undefined,
+      detalleCorreccion: formatearDetalleCorreccion(nuevo.detalleCorreccion),
+      documentacionPresentada: Array.isArray(nuevo.documentacionPresentada) ? nuevo.documentacionPresentada : [],
       delegado: nuevo.delegado,
       estado: 'PENDIENTE',
       fechaRecepcion: fechaHoraStr,
       usuarioRegistro: usuarioActual?.nombre || 'Operador',
       observaciones: nuevo.observaciones?.trim() || '',
-      historial: [],
+      historial: [
+        {
+          id: `hist-${Date.now()}`,
+          titulo: 'Trámite registrado',
+          descripcion: `Ingreso formal de expediente por ${usuarioActual?.nombre || 'Operador'}. Asignado a ${nuevo.delegado}.`,
+          fechaHora: fechaHoraStr,
+          usuario: usuarioActual?.nombre || 'Operador',
+          tipo: 'REGISTRO',
+        },
+      ],
     };
 
     // Actualización inmediata optimista
@@ -327,16 +356,27 @@ export const TramitesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return { success: false, message: msg };
     }
 
+    const normalizado: Tramite = {
+      ...tramiteActualizado,
+      nombreCompleto: formatearNombreCompleto(tramiteActualizado.nombreCompleto),
+      cedulaIdentidad: tramiteActualizado.cedulaIdentidad.trim(),
+      tieneComplemento: !!tramiteActualizado.tieneComplemento,
+      complemento: tramiteActualizado.tieneComplemento ? (tramiteActualizado.complemento || '').trim().toUpperCase() : '',
+      detalleCorreccion: formatearDetalleCorreccion(tramiteActualizado.detalleCorreccion),
+      queEstaCorrigiendo: tramiteActualizado.queEstaCorrigiendo === 'Otro' ? 'Otro' : formatearTipoSaneamiento(tramiteActualizado.queEstaCorrigiendo),
+      otroTipoSaneamiento: tramiteActualizado.queEstaCorrigiendo === 'Otro' ? (tramiteActualizado.otroTipoSaneamiento || '').trim() : undefined,
+    };
+
     // Actualización inmediata optimista en la interfaz
     setTramites((prev) =>
-      prev.map((t) => (t.id === tramiteActualizado.id ? tramiteActualizado : t))
+      prev.map((t) => (t.id === normalizado.id ? normalizado : t))
     );
 
-    const res = await gasApiService.guardarTramite(tramiteActualizado, usuarioActual?.nombre || 'Maycol Ávila');
+    const res = await gasApiService.guardarTramite(normalizado, usuarioActual?.nombre || 'Maycol Ávila');
     if (res.success) {
       if (res.tramite) {
         setTramites((prev) =>
-          prev.map((t) => (t.id === tramiteActualizado.id ? (res.tramite as Tramite) : t))
+          prev.map((t) => (t.id === normalizado.id ? (res.tramite as Tramite) : t))
         );
       }
       return { success: true };
